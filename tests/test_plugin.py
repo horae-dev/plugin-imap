@@ -589,21 +589,77 @@ LOOPBACK_ARGS: dict[str, Any] = {"security": "starttls", "port": 1143, "rules": 
 
 
 @pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1"])
-def test_loopback_needs_the_explicit_flag(harness: Make, host: str) -> None:
+def test_loopback_needs_the_explicit_flag_with_an_older_core(harness: Make, host: str) -> None:
     h = harness(inbox())
-    for network in (None, [], [host]):
-        assert "allow_loopback" in errors(h, host=host, network=network, **LOOPBACK_ARGS)
-    assert "allow_loopback" in errors(h, host=host, allow_loopback=False, **LOOPBACK_ARGS)
+    assert "allow_loopback" in errors(h, host=host, network=None, **LOOPBACK_ARGS)
+    assert "allow_loopback" in errors(
+        h, host=host, allow_loopback=False, network=None, **LOOPBACK_ARGS
+    )
     assert h.endpoints == []
     assert h.run(host=host, allow_loopback=True, network=None, **LOOPBACK_ARGS).error is None
 
 
+@pytest.mark.parametrize(
+    ("host", "grant"), [("127.0.0.1", "127.0.0.1:1143"), ("::1", "[::1]:1143")]
+)
+def test_a_network_local_grant_approves_a_bridge(harness: Make, host: str, grant: str) -> None:
+    h = harness(inbox())
+    result = h.run(host=host, network=[], network_local=[grant], **LOOPBACK_ARGS)
+    assert result.error is None
+    assert h.endpoints[0][0].host == host
+    assert h.endpoints[0][0].port == 1143
+
+
+def test_a_grant_makes_allow_loopback_unnecessary_but_harmless(harness: Make) -> None:
+    h = harness(inbox())
+    for flag in (False, True):
+        result = h.run(
+            host="127.0.0.1",
+            allow_loopback=flag,
+            network_local=["127.0.0.1:1143"],
+            **LOOPBACK_ARGS,
+        )
+        assert result.error is None
+
+
 def test_loopback_is_refused_when_the_lock_says_no(harness: Make) -> None:
     h = harness(inbox())
-    # a core that sends a list never approves a loopback name (the SDK matches DNS names only)
-    for network in ([], ["imap.fastmail.com"]):
-        message = errors(h, host="127.0.0.1", allow_loopback=True, network=network, **LOOPBACK_ARGS)
+    # a core that sends lists but no matching grant: the opt-in does not override it
+    for network, local in (([], []), (["imap.fastmail.com"], []), ([], ["127.0.0.1:2143"])):
+        message = errors(
+            h,
+            host="127.0.0.1",
+            allow_loopback=True,
+            network=network,
+            network_local=local,
+            **LOOPBACK_ARGS,
+        )
         assert "host_not_approved" in message
+        assert "network_local" in message
+    assert h.endpoints == []
+
+
+def test_a_grant_for_another_host_or_port_is_refused(harness: Make) -> None:
+    h = harness(inbox())
+    for grant in ("127.0.0.1:1144", "127.0.0.2:1143", "[::1]:1143", "imap.lan:1143"):
+        message = errors(h, host="127.0.0.1", network=[], network_local=[grant], **LOOPBACK_ARGS)
+        assert "host_not_approved" in message
+    assert "host_not_approved" in errors(
+        h, host="localhost", network=[], network_local=["127.0.0.1:1143"], **LOOPBACK_ARGS
+    )
+    assert h.endpoints == []
+
+
+def test_a_local_grant_never_approves_a_public_name(harness: Make) -> None:
+    h = harness(inbox())
+    message = errors(
+        h,
+        host="mail.example.org",
+        allowed_hosts=["mail.example.org"],
+        network=[],
+        network_local=["127.0.0.1:1143"],
+    )
+    assert "host_not_approved" in message
     assert h.endpoints == []
 
 
@@ -615,23 +671,25 @@ def test_loopback_needs_an_explicit_port(harness: Make) -> None:
     assert h.endpoints == []
 
 
-@pytest.mark.parametrize("answer", [True, None])
-def test_loopback_accepted_when_the_lock_agrees_or_is_silent(answer: bool | None) -> None:
+@pytest.mark.parametrize(("answer", "loopback"), [(True, False), (True, True), (None, True)])
+def test_loopback_accepted_when_the_lock_agrees_or_is_silent(
+    answer: bool | None, loopback: bool
+) -> None:
     from horae_sdk import Call
 
     from horae_imap.plugin import _check_host
 
     class Asked(Call):
-        urls: list[str]
+        asked: list[tuple[str, int]]
 
-        def host_allowed(self, url: str) -> bool | None:
-            self.urls = [*getattr(self, "urls", []), url]
+        def address_allowed(self, host: str, port: int) -> bool | None:
+            self.asked = [*getattr(self, "asked", []), (host, port)]
             return answer
 
     call = Asked(tool="imap.messages")
-    assert _check_host(call, "127.0.0.1", frozenset(), loopback=True, port=1143) == "127.0.0.1"
-    assert _check_host(call, "::1", frozenset(), loopback=True, port=1143) == "::1"
-    assert call.urls == ["https://127.0.0.1:1143/", "https://[::1]:1143/"]
+    assert _check_host(call, "127.0.0.1", frozenset(), loopback=loopback, port=1143) == "127.0.0.1"
+    assert _check_host(call, "::1", frozenset(), loopback=loopback, port=1143) == "::1"
+    assert call.asked == [("127.0.0.1", 1143), ("::1", 1143)]
 
 
 def test_the_lock_is_asked_about_the_configured_port_only(harness: Make) -> None:

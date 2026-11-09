@@ -421,7 +421,7 @@ wheels = [
 
 [[package]]
 name = "horae-plugin-imap"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "horae-sdk" },
@@ -452,8 +452,8 @@ dev = [
 
 [[package]]
 name = "horae-sdk"
-version = "0.5.0"
-source = { git = "https://github.com/horae-dev/horae?subdirectory=sdk&branch=main#434aac6999ee27a51d36b91b8475b7e1fd83e69d" }
+version = "0.6.0"
+source = { git = "https://github.com/horae-dev/horae?subdirectory=sdk&branch=main#82b5c32d8f469c1b87f009df982c695e4b472228" }
 dependencies = [
     { name = "anyio" },
     { name = "mcp" },

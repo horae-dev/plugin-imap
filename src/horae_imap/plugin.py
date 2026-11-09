@@ -45,7 +45,7 @@ from horae_imap.session import Connector, Endpoint, Selected, Session, connect
 
 NAME = "imap"
 """The plugin's name, also the namespace of its refs (`imap.messages`) and fingerprints."""
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 HORAE = ">=0,<0.2"
 COMMAND = ["python3", "-m", "horae_imap"]
 """`runtime.command` of `plugin.yaml`. When installing, pin an absolute interpreter that has
@@ -55,9 +55,13 @@ HOSTS = ("imap.fastmail.com", "imap.gmail.com")
 in the lock and list it in the call's `allowed_hosts` (README, "Other hosts")."""
 USERNAME_SECRET = "IMAP_USERNAME"  # noqa: S105 (a secret's name, not its value)
 PASSWORD_SECRET = "IMAP_PASSWORD"  # noqa: S105 (a secret's name, not its value)
+LOCAL_ENDPOINTS = ("127.0.0.1:1143",)
+"""`permissions.network_local`: Proton Mail Bridge's default IMAP address. Approved in
+`horae.lock` (horae-sdk 0.6, decision 66); a Bridge on another port needs its own entry."""
 PERMISSIONS = Permissions(
     intents=["task.create"],
     network=list(HOSTS),
+    network_local=list(LOCAL_ENDPOINTS),
     secrets=[USERNAME_SECRET, PASSWORD_SECRET],
 )
 """Network: the providers above. Secrets: the login. Paths: none declared (the state file's
@@ -131,26 +135,33 @@ def _is_dns_name(host: str) -> bool:
     return False
 
 
+def _endpoint_name(host: str, port: int) -> str:
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+
+
 def _check_host(
     call: Call, host: object, allowed: frozenset[str], *, loopback: bool, port: int | None
 ) -> str:
     """The server's host, once it is allowed to be contacted.
 
     A DNS name must be declared, or listed in `allowed_hosts`, **and** not refused by the lock
-    (`call.host_allowed`). A loopback name (a bridge on this machine; a manifest cannot declare
-    it) needs the explicit `allow_loopback` and the configured `port`, and `call.host_allowed`
-    is still asked about that host and port: `False` refuses, `None` (an older core sent no
-    list) leaves the explicit opt-in as the approval."""
+    (`call.host_allowed`). A loopback name (a bridge on this machine) needs the configured
+    `port` and is judged by `call.address_allowed(host, port)`, which matches the exact
+    `host:port` against the lock's `permissions.network_local` (horae-sdk 0.6): `True` approves
+    it, `False` refuses it without connecting, and `None` (an older core sent no list) leaves
+    the explicit `allow_loopback` opt-in as the approval."""
     if not isinstance(host, str):
         raise PluginError("config_invalid: host is required")
     if host in LOOPBACK:
-        if not loopback:
-            raise PluginError("host_not_approved: a loopback host needs allow_loopback: true")
         if port is None:
             raise PluginError("config_invalid: a loopback host needs an explicit port")
-        name = f"[{host}]" if ":" in host else host
-        if call.host_allowed(f"https://{name}:{port}/") is False:
-            raise PluginError(f"host_not_approved: {host} is not approved in horae.lock")
+        verdict = call.address_allowed(host, port)
+        if verdict is False:
+            raise PluginError(
+                f"host_not_approved: {_endpoint_name(host, port)} is not in network_local"
+            )
+        if verdict is None and not loopback:
+            raise PluginError("host_not_approved: a loopback host needs allow_loopback: true")
         return host
     if not _is_dns_name(host) or len(host) > 253:
         raise PluginError("config_invalid: host is a lowercase DNS name (no IP, no port)")
