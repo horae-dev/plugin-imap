@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1
+
+- A local Bridge is approved through `permissions.network_local` (horae-sdk 0.6, decision 66):
+  `plugin.yaml` declares `127.0.0.1:1143`, and the plugin checks
+  `call.address_allowed(host, port)` before connecting. `True` connects, `False` refuses
+  (`host_not_approved`), `None` (an older core) keeps the `allow_loopback` opt-in. This replaces
+  the 0.1.0 behaviour where a core that sent a list always refused a loopback host.
+- Requires `horae-sdk>=0.6,<0.7`.
+- **Permissions (new, to approve):** network_local `127.0.0.1:1143`.
+
 ## 0.1.0
 
 First release: the generic IMAP source.

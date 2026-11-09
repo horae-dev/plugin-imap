@@ -4,7 +4,7 @@
 
 Horae plugin: a generic, **read-only** IMAP source. It reads the mail that arrived since the last run in the folders you choose, applies your rules (sender, subject, list-id; no LLM) and returns `request` and `date` items, optionally as `task.create` intents. Proton Mail through Proton Mail Bridge is the same source pointed at `127.0.0.1` (the recipe is [plugin-imap#3](../../issues/3)).
 
-Version 0.1.0 · requires `horae-sdk` 0.5 · Apache-2.0
+Version 0.1.1 · requires `horae-sdk` 0.6 · Apache-2.0
 
 ## What it never does
 
@@ -18,12 +18,12 @@ Version 0.1.0 · requires `horae-sdk` 0.5 · Apache-2.0
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `host` | required | the IMAP server: a lowercase DNS name, declared in `plugin.yaml` or listed in `allowed_hosts` **and** approved in `horae.lock`; or `localhost`, `127.0.0.1`, `::1` for a bridge on this machine, which also needs `allow_loopback: true` and an explicit `port` |
+| `host` | required | the IMAP server: a lowercase DNS name, declared in `plugin.yaml` or listed in `allowed_hosts` **and** approved in `horae.lock`; or `localhost`, `127.0.0.1`, `::1` for a bridge on this machine, which needs an explicit `port` and a `network_local` grant (`127.0.0.1:1143`) in `horae.lock` (an older core: `allow_loopback: true`) |
 | `state_path` | required | absolute path of the JSON file that keeps the since-state; its directory must be approved for writing in `horae.lock` |
 | `port` | 993 (`ssl`), 143 otherwise | |
 | `security` | `ssl` | `ssl` (implicit TLS), `starttls`, or `plain` (needs `allow_plaintext: true`) |
 | `allow_plaintext` | `false` | the explicit opt-in for `security: plain`: **the password then travels in clear text**. Only for a loopback bridge or a network you trust completely |
-| `allow_loopback` | `false` | the explicit opt-in to connect to a loopback host (`localhost`, `127.0.0.1`, `::1`), on the configured `port` only (it must be given). `call.host_allowed` is still asked about that host and port: a core that sends an approved list never approves a loopback name, so it **refuses**; only an older core that sends no list lets the opt-in stand |
+| `allow_loopback` | `false` | the opt-in to connect to a loopback host (`localhost`, `127.0.0.1`, `::1`) on the configured `port` (it must be given), **only for a core older than horae-sdk 0.6** that sends no approved list. A core that sends one decides by `call.address_allowed(host, port)` against `permissions.network_local`: a granted `host:port` is approved (the flag is not needed), anything else is **refused** without connecting |
 | `allowed_hosts` | none | extra server names, at most 16 (see "Other hosts") |
 | `account` | `mail` | a label (A-Z a-z 0-9 . _ -, at most 32): the state key and part of the fingerprints |
 | `folders` | `["INBOX"]` | 1 to 8 folder names, exactly as the server spells them (`Lists/School`, `Envoyés`) |
@@ -166,13 +166,22 @@ Declare the host for the instance (approve it in `horae.lock`) and list it in `a
 
 ### Proton Mail Bridge (loopback)
 
-Bridge listens on `127.0.0.1` (IMAP 1143 with STARTTLS by default) and gives its own username and password. A manifest cannot declare a loopback host, so it is never in `plugin.yaml`. Connecting to one needs the explicit `allow_loopback: true` and the `port` (no default is assumed). The lock is still consulted: with a core that sends an approved host list (horae-sdk 0.5) a loopback name is refused (`host_not_approved`); only a core that sends no list (older than 0.5) treats your opt-in as the approval. Check that your core accepts this before relying on a bridge:
+Bridge listens on `127.0.0.1` (IMAP 1143 with STARTTLS by default) and gives its own username and password. `plugin.yaml` declares `permissions.network_local: ["127.0.0.1:1143"]` (horae-sdk 0.6, decision 66); approve that entry in `horae.lock`, and use the same `host:port` in the pipeline. The plugin asks `call.address_allowed(host, port)` before connecting: `True` connects, `False` (no matching grant, or another host or port) refuses with `host_not_approved`, and `None` (a core older than 0.6, which sends no list) falls back to the explicit `allow_loopback: true` opt-in. The `port` is always required. A Bridge on another port needs its own `network_local` entry (for example `127.0.0.1:1144`) in the lock and in the plugin instance's approvals.
+
+Lock entry:
+
+```yaml
+permissions:
+  network_local:
+    - 127.0.0.1:1143
+```
+
+Pipeline step:
 
 ```yaml
 - imap.messages:
     host: 127.0.0.1
     port: 1143
-    allow_loopback: true
     security: starttls
     state_path: /var/lib/horae/imap-proton.json
     account: proton
@@ -182,7 +191,7 @@ Bridge's certificate is self-signed and the plugin never relaxes verification, s
 
 ### Other hosts
 
-`plugin.yaml` declares `imap.gmail.com` and `imap.fastmail.com`. Any other server must be (1) added to the instance's lock approvals for this plugin, and (2) listed in the call's `allowed_hosts`. Both are required: the core's list (`Call.host_allowed`, horae-sdk 0.5) cannot be widened by a pipeline, and a pipeline cannot reach a host the lock does not hold. With an older core that sends no list, only (2) applies. IP literals are never accepted (except loopback, see `allow_loopback`), and `localhost` is never an `allowed_hosts` value.
+`plugin.yaml` declares `imap.gmail.com` and `imap.fastmail.com`. Any other server must be (1) added to the instance's lock approvals for this plugin, and (2) listed in the call's `allowed_hosts`. Both are required: the core's list (`Call.host_allowed`) cannot be widened by a pipeline, and a pipeline cannot reach a host the lock does not hold. With an older core that sends no list, only (2) applies. IP literals are never accepted (except loopback, see `network_local`), and `localhost` is never an `allowed_hosts` value.
 
 ## Permissions
 

@@ -125,6 +125,7 @@ class Harness:
         self,
         *,
         network: list[str] | EllipsisType | None = ...,
+        network_local: list[str] | None = None,
         paths: list[str] | None = None,
         **params: Any,
     ) -> Replayed:
@@ -137,6 +138,7 @@ class Harness:
                 arguments,
                 paths={"write": [self.root] if paths is None else paths},
                 network=[HOST] if network is ... else network,
+                network_local=network_local,
             )
 
         return anyio.run(go)
