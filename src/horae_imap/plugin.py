@@ -29,6 +29,7 @@ import hashlib
 import ipaddress
 import os
 import re
+import ssl
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -41,11 +42,11 @@ from horae_sdk.tasks import is_task_link
 from horae_imap import message as messages
 from horae_imap import rules as rule_engine
 from horae_imap import state as state_file
-from horae_imap.session import Connector, Endpoint, Selected, Session, connect
+from horae_imap.session import Connector, Endpoint, Selected, Session, connect, tls_context
 
 NAME = "imap"
 """The plugin's name, also the namespace of its refs (`imap.messages`) and fingerprints."""
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 HORAE = ">=0,<0.2"
 COMMAND = ["python3", "-m", "horae_imap"]
 """`runtime.command` of `plugin.yaml`. When installing, pin an absolute interpreter that has
@@ -199,6 +200,27 @@ def _link(template: str, folder: str, uid: str, validity: str, digest: str) -> s
     return template
 
 
+def _ca_file(call: Call, value: object, security: str) -> str | None:
+    """The real path of `ca_file`, once the lock lets this plugin read it and it parses as PEM.
+
+    It is read for this call's connection only, and only if the lock approves the path for
+    reading (`paths.read`). Checking it here fails before any network use."""
+    if value is None:
+        return None
+    if security == "plain":
+        raise PluginError("config_invalid: ca_file needs security ssl or starttls")
+    if not isinstance(value, str) or not value:
+        raise PluginError("config_invalid: ca_file is an absolute path to a PEM file")
+    real = call.paths.allowed(value)
+    if real is None:
+        raise PluginError("path_not_approved: ca_file is not under a path approved for reading")
+    try:
+        tls_context(real)
+    except (OSError, ssl.SSLError):
+        raise PluginError("config_invalid: ca_file is not a readable PEM certificate") from None
+    return real
+
+
 def options(call: Call, params: Mapping[str, Any]) -> Options:
     """Check every parameter. Nothing here touches the network."""
     security = params["security"]
@@ -238,6 +260,7 @@ def options(call: Call, params: Mapping[str, Any]) -> Options:
         or len(set(folders)) != len(folders)
     ):
         raise PluginError(f"config_invalid: folders lists 1 to {MAX_FOLDERS} distinct names")
+    ca_file = _ca_file(call, params["ca_file"], security)
     state_path = params["state_path"]
     if not isinstance(state_path, str):
         raise PluginError("config_invalid: state_path is required (an absolute path)")
@@ -253,7 +276,7 @@ def options(call: Call, params: Mapping[str, Any]) -> Options:
             raise PluginError(f"config_invalid: {flag} is true or false")
     max_messages = _bounded(params["max_messages"], "max_messages", 1, MAX_MESSAGES)
     return Options(
-        endpoint=Endpoint(host, port, security, float(timeout)),
+        endpoint=Endpoint(host, port, security, float(timeout), ca_file),
         label=label,
         folders=tuple(folders),
         state_path=real,
@@ -481,6 +504,7 @@ def build(
         security: str = "ssl",
         allow_plaintext: bool = False,
         allow_loopback: bool = False,
+        ca_file: str | None = None,
         allowed_hosts: list[str] | None = None,
         account: str = "mail",
         folders: list[str] | None = None,

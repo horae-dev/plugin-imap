@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.2
+
+- `ca_file` (new parameter): an absolute path to a PEM file trusted for that one connection,
+  for Proton Mail Bridge's self-signed STARTTLS certificate. Only that file is trusted (not the
+  system store), the chain and host name are still verified, and there is no switch to turn
+  verification off. The path must be approved for reading in the lock (`paths.read`, checked with
+  `call.paths.allowed`); it is validated before any connection, and refused with `security: plain`.
+- `docs/proton-bridge.md`: the Proton Mail Bridge recipe (headless Bridge, first login, the
+  Bridge credentials, the certificate, a pipeline entry, a Compose/Coolify snippet and the manual
+  end-to-end check).
+- **Permissions:** none new in `plugin.yaml`. Per instance, the lock approves the `ca_file`
+  directory as a `paths.read` entry.
+
 ## 0.1.1
 
 - A local Bridge is approved through `permissions.network_local` (horae-sdk 0.6, decision 66):

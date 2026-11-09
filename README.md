@@ -2,9 +2,9 @@
 
 # plugin-imap
 
-Horae plugin: a generic, **read-only** IMAP source. It reads the mail that arrived since the last run in the folders you choose, applies your rules (sender, subject, list-id; no LLM) and returns `request` and `date` items, optionally as `task.create` intents. Proton Mail through Proton Mail Bridge is the same source pointed at `127.0.0.1` (the recipe is [plugin-imap#3](../../issues/3)).
+Horae plugin: a generic, **read-only** IMAP source. It reads the mail that arrived since the last run in the folders you choose, applies your rules (sender, subject, list-id; no LLM) and returns `request` and `date` items, optionally as `task.create` intents. Proton Mail through Proton Mail Bridge is the same source pointed at `127.0.0.1` (the recipe is [docs/proton-bridge.md](docs/proton-bridge.md)).
 
-Version 0.1.1 · requires `horae-sdk` 0.6 · Apache-2.0
+Version 0.1.2 · requires `horae-sdk` 0.6 · Apache-2.0
 
 ## What it never does
 
@@ -24,6 +24,7 @@ Version 0.1.1 · requires `horae-sdk` 0.6 · Apache-2.0
 | `security` | `ssl` | `ssl` (implicit TLS), `starttls`, or `plain` (needs `allow_plaintext: true`) |
 | `allow_plaintext` | `false` | the explicit opt-in for `security: plain`: **the password then travels in clear text**. Only for a loopback bridge or a network you trust completely |
 | `allow_loopback` | `false` | the opt-in to connect to a loopback host (`localhost`, `127.0.0.1`, `::1`) on the configured `port` (it must be given), **only for a core older than horae-sdk 0.6** that sends no approved list. A core that sends one decides by `call.address_allowed(host, port)` against `permissions.network_local`: a granted `host:port` is approved (the flag is not needed), anything else is **refused** without connecting |
+| `ca_file` | none | an absolute path to a PEM file that vouches for the server (Proton Mail Bridge's self-signed certificate): for this connection only, **only** that file is trusted instead of the system store, and the chain and host name are still verified; there is no way to turn verification off. The path must be approved for reading (`paths.read`) in `horae.lock`; needs `security` `ssl` or `starttls`. See [docs/proton-bridge.md](docs/proton-bridge.md) |
 | `allowed_hosts` | none | extra server names, at most 16 (see "Other hosts") |
 | `account` | `mail` | a label (A-Z a-z 0-9 . _ -, at most 32): the state key and part of the fingerprints |
 | `folders` | `["INBOX"]` | 1 to 8 folder names, exactly as the server spells them (`Lists/School`, `Envoyés`) |
