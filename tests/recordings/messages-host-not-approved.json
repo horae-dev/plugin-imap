@@ -1,0 +1,36 @@
+{
+  "tool": "imap.messages",
+  "params": {
+    "host": "imap.gmail.com",
+    "state_path": "/var/lib/horae-recordings/imap-state.json",
+    "update_state": false,
+    "rules": [
+      {
+        "name": "school",
+        "kind": "request",
+        "from": [
+          "*@school.example.org"
+        ],
+        "task_prefix": "Reply: "
+      },
+      {
+        "name": "news",
+        "kind": "date",
+        "list_id": [
+          "news.example.org"
+        ]
+      }
+    ]
+  },
+  "paths": {
+    "write": [
+      "/var/lib/horae-recordings"
+    ]
+  },
+  "network": [
+    "imap.fastmail.com"
+  ],
+  "expect": {
+    "error": "host_not_approved: imap.gmail.com"
+  }
+}

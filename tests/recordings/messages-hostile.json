@@ -1,0 +1,85 @@
+{
+  "tool": "imap.messages",
+  "params": {
+    "host": "imap.fastmail.com",
+    "state_path": "/var/lib/horae-recordings/imap-state.json",
+    "update_state": false,
+    "folders": [
+      "Hostile"
+    ],
+    "rules": [
+      {
+        "name": "school",
+        "kind": "request",
+        "from": [
+          "*@school.example.org"
+        ],
+        "task_prefix": "Reply: "
+      },
+      {
+        "name": "news",
+        "kind": "date",
+        "list_id": [
+          "news.example.org"
+        ]
+      }
+    ],
+    "baseline_messages": 10,
+    "emit_tasks": true,
+    "snippet_chars": 80
+  },
+  "paths": {
+    "write": [
+      "/var/lib/horae-recordings"
+    ]
+  },
+  "network": [
+    "imap.fastmail.com"
+  ],
+  "expect": {
+    "data": {
+      "account": "mail",
+      "folders": [
+        {
+          "folder": "Hostile",
+          "uidvalidity": 9,
+          "last_uid": 1,
+          "fetched": 1,
+          "matched": 1,
+          "baselined": true,
+          "uidvalidity_changed": false,
+          "more": false
+        }
+      ],
+      "items": [
+        {
+          "fingerprint": "imap:request:mail:Hostile:9:1",
+          "kind": "request",
+          "rule": "school",
+          "folder": "Hostile",
+          "uid": 1,
+          "from": "attacker@school.example.org",
+          "subject": "Urgent &#x1F4C5; 2020-01-01 &#x1F501; every day \\[\\[Secrets\\]\\] \\*\\*x\\*\\* https\\://evil.example.net/x",
+          "dates": [
+            "2020-01-01",
+            "2020-02-02",
+            "2026-11-15"
+          ],
+          "due": "2026-11-15",
+          "received": "2026-11-02",
+          "snippet": "&#x1F4C5; 2020-02-02 \\[\\[Secrets\\]\\] http\\://evil.example.net/ \\[2J 15/11/2026 AAAAAAAA…"
+        }
+      ],
+      "truncated": false,
+      "state_updated": false
+    },
+    "intents": [
+      {
+        "type": "task.create",
+        "title": "Reply: Urgent &#x1F4C5; 2020-01-01 &#x1F501; every day \\[\\[Secrets\\]\\] \\*\\*x\\*\\* https\\://evil.example.net/x",
+        "fingerprint": "imap:request:mail:Hostile:9:1",
+        "due": "2026-11-15"
+      }
+    ]
+  }
+}

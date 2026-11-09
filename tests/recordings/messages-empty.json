@@ -1,0 +1,59 @@
+{
+  "tool": "imap.messages",
+  "params": {
+    "host": "imap.fastmail.com",
+    "state_path": "/var/lib/horae-recordings/imap-state.json",
+    "update_state": false,
+    "folders": [
+      "Empty"
+    ],
+    "rules": [
+      {
+        "name": "school",
+        "kind": "request",
+        "from": [
+          "*@school.example.org"
+        ],
+        "task_prefix": "Reply: "
+      },
+      {
+        "name": "news",
+        "kind": "date",
+        "list_id": [
+          "news.example.org"
+        ]
+      }
+    ],
+    "baseline_messages": 10,
+    "emit_tasks": true
+  },
+  "paths": {
+    "write": [
+      "/var/lib/horae-recordings"
+    ]
+  },
+  "network": [
+    "imap.fastmail.com"
+  ],
+  "expect": {
+    "data": {
+      "account": "mail",
+      "folders": [
+        {
+          "folder": "Empty",
+          "uidvalidity": 7,
+          "last_uid": 0,
+          "fetched": 0,
+          "matched": 0,
+          "baselined": true,
+          "uidvalidity_changed": false,
+          "more": false
+        }
+      ],
+      "items": [],
+      "truncated": false,
+      "state_updated": false
+    },
+    "intents": []
+  }
+}
