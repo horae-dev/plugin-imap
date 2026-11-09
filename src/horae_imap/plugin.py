@@ -131,13 +131,26 @@ def _is_dns_name(host: str) -> bool:
     return False
 
 
-def _check_host(call: Call, host: object, allowed: frozenset[str]) -> str:
-    """The server's host, once it is allowed to be contacted: a loopback name (a bridge on this
-    machine; the manifest cannot declare it) or a DNS name that is declared, or listed in
-    `allowed_hosts`, **and** not refused by the lock (`call.host_allowed`)."""
+def _check_host(
+    call: Call, host: object, allowed: frozenset[str], *, loopback: bool, port: int | None
+) -> str:
+    """The server's host, once it is allowed to be contacted.
+
+    A DNS name must be declared, or listed in `allowed_hosts`, **and** not refused by the lock
+    (`call.host_allowed`). A loopback name (a bridge on this machine; a manifest cannot declare
+    it) needs the explicit `allow_loopback` and the configured `port`, and `call.host_allowed`
+    is still asked about that host and port: `False` refuses, `None` (an older core sent no
+    list) leaves the explicit opt-in as the approval."""
     if not isinstance(host, str):
         raise PluginError("config_invalid: host is required")
     if host in LOOPBACK:
+        if not loopback:
+            raise PluginError("host_not_approved: a loopback host needs allow_loopback: true")
+        if port is None:
+            raise PluginError("config_invalid: a loopback host needs an explicit port")
+        name = f"[{host}]" if ":" in host else host
+        if call.host_allowed(f"https://{name}:{port}/") is False:
+            raise PluginError(f"host_not_approved: {host} is not approved in horae.lock")
         return host
     if not _is_dns_name(host) or len(host) > 253:
         raise PluginError("config_invalid: host is a lowercase DNS name (no IP, no port)")
@@ -185,9 +198,20 @@ def options(call: Call, params: Mapping[str, Any]) -> Options:
             "config_invalid: security plain sends the password unencrypted: "
             "set allow_plaintext: true to accept it"
         )
-    host = _check_host(call, params["host"], _allowed_hosts(params["allowed_hosts"]))
     port = params["port"]
-    port = (993 if security == "ssl" else 143) if port is None else _bounded(port, "port", 1, 65535)
+    if port is not None:
+        port = _bounded(port, "port", 1, 65535)
+    if type(params["allow_loopback"]) is not bool:
+        raise PluginError("config_invalid: allow_loopback is true or false")
+    host = _check_host(
+        call,
+        params["host"],
+        _allowed_hosts(params["allowed_hosts"]),
+        loopback=params["allow_loopback"],
+        port=port,
+    )
+    if port is None:
+        port = 993 if security == "ssl" else 143
     timeout = _bounded(params["timeout_s"], "timeout_s", 1, 60)
     budget = _bounded(params["budget_s"], "budget_s", 1, 300)
     label = params["account"]
@@ -445,6 +469,7 @@ def build(
         port: int | None = None,
         security: str = "ssl",
         allow_plaintext: bool = False,
+        allow_loopback: bool = False,
         allowed_hosts: list[str] | None = None,
         account: str = "mail",
         folders: list[str] | None = None,

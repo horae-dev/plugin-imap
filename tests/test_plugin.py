@@ -444,14 +444,22 @@ HOST_NAME = "imap.fastmail.com"
 
 def test_plain_text_needs_the_explicit_flag(harness: Make) -> None:
     h = harness(inbox())
-    assert "allow_plaintext" in errors(h, security="plain", host="localhost", rules=[SCHOOL])
+    assert "allow_plaintext" in errors(
+        h, security="plain", host="localhost", allow_loopback=True, port=1143, network=None
+    )
     assert h.endpoints == []
-    ok = h.run(security="plain", host="localhost", allow_plaintext=True, rules=[SCHOOL], port=1143)
+    ok = h.run(
+        security="plain",
+        host="localhost",
+        allow_plaintext=True,
+        allow_loopback=True,
+        network=None,
+        rules=[SCHOOL],
+        port=1143,
+    )
     assert ok.error is None
     assert h.endpoints[0][0].security == "plain"
     assert h.endpoints[0][0].port == 1143
-    assert h.run(security="plain", host="localhost", allow_plaintext=True).error is None
-    assert h.endpoints[1][0].port == 143
 
 
 def test_hosts_must_be_declared_or_listed_and_approved(harness: Make) -> None:
@@ -499,7 +507,14 @@ def test_bad_allowed_hosts_are_refused(harness: Make) -> None:
 
 def test_loopback_is_for_a_local_bridge(harness: Make) -> None:
     h = harness(inbox())
-    result = h.run(host="127.0.0.1", security="starttls", port=1143, rules=[SCHOOL], network=[])
+    result = h.run(
+        host="127.0.0.1",
+        security="starttls",
+        port=1143,
+        allow_loopback=True,
+        network=None,
+        rules=[SCHOOL],
+    )
     assert result.error is None
     assert h.endpoints[0][0].host == "127.0.0.1"
 
@@ -568,3 +583,61 @@ def test_bad_parameters_are_refused_by_name(
     assert needle in errors(h, **params)
     assert h.endpoints == []
     assert not h.state.exists()
+
+
+LOOPBACK_ARGS: dict[str, Any] = {"security": "starttls", "port": 1143, "rules": [SCHOOL]}
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1"])
+def test_loopback_needs_the_explicit_flag(harness: Make, host: str) -> None:
+    h = harness(inbox())
+    for network in (None, [], [host]):
+        assert "allow_loopback" in errors(h, host=host, network=network, **LOOPBACK_ARGS)
+    assert "allow_loopback" in errors(h, host=host, allow_loopback=False, **LOOPBACK_ARGS)
+    assert h.endpoints == []
+    assert h.run(host=host, allow_loopback=True, network=None, **LOOPBACK_ARGS).error is None
+
+
+def test_loopback_is_refused_when_the_lock_says_no(harness: Make) -> None:
+    h = harness(inbox())
+    # a core that sends a list never approves a loopback name (the SDK matches DNS names only)
+    for network in ([], ["imap.fastmail.com"]):
+        message = errors(h, host="127.0.0.1", allow_loopback=True, network=network, **LOOPBACK_ARGS)
+        assert "host_not_approved" in message
+    assert h.endpoints == []
+
+
+def test_loopback_needs_an_explicit_port(harness: Make) -> None:
+    h = harness(inbox())
+    args = {k: v for k, v in LOOPBACK_ARGS.items() if k != "port"}
+    message = errors(h, host="127.0.0.1", allow_loopback=True, network=None, **args)
+    assert "explicit port" in message
+    assert h.endpoints == []
+
+
+@pytest.mark.parametrize("answer", [True, None])
+def test_loopback_accepted_when_the_lock_agrees_or_is_silent(answer: bool | None) -> None:
+    from horae_sdk import Call
+
+    from horae_imap.plugin import _check_host
+
+    class Asked(Call):
+        urls: list[str]
+
+        def host_allowed(self, url: str) -> bool | None:
+            self.urls = [*getattr(self, "urls", []), url]
+            return answer
+
+    call = Asked(tool="imap.messages")
+    assert _check_host(call, "127.0.0.1", frozenset(), loopback=True, port=1143) == "127.0.0.1"
+    assert _check_host(call, "::1", frozenset(), loopback=True, port=1143) == "::1"
+    assert call.urls == ["https://127.0.0.1:1143/", "https://[::1]:1143/"]
+
+
+def test_the_lock_is_asked_about_the_configured_port_only(harness: Make) -> None:
+    h = harness(inbox())
+    assert h.run(host="127.0.0.1", allow_loopback=True, network=None, **LOOPBACK_ARGS).error is None
+    assert h.endpoints[0][0].port == 1143
+    assert "config_invalid" in errors(
+        h, host="127.0.0.1", allow_loopback=True, network=None, **{**LOOPBACK_ARGS, "port": 70000}
+    )

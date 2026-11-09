@@ -104,6 +104,7 @@ class Runner:
             "port": self.server.port,
             "security": "plain",
             "allow_plaintext": True,
+            "allow_loopback": True,
             "state_path": str(self.state),
             "timeout_s": 10,
             **params,
@@ -115,7 +116,7 @@ class Runner:
                 "imap.messages",
                 arguments,
                 paths={"write": [str(self.tmp)]},
-                network=[],
+                network=None,
             )
 
         return anyio.run(go)

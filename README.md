@@ -18,11 +18,12 @@ Version 0.1.0 · requires `horae-sdk` 0.5 · Apache-2.0
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `host` | required | the IMAP server: a lowercase DNS name, declared in `plugin.yaml` or listed in `allowed_hosts` **and** approved in `horae.lock`; or `localhost`, `127.0.0.1`, `::1` for a bridge on this machine |
+| `host` | required | the IMAP server: a lowercase DNS name, declared in `plugin.yaml` or listed in `allowed_hosts` **and** approved in `horae.lock`; or `localhost`, `127.0.0.1`, `::1` for a bridge on this machine, which also needs `allow_loopback: true` and an explicit `port` |
 | `state_path` | required | absolute path of the JSON file that keeps the since-state; its directory must be approved for writing in `horae.lock` |
 | `port` | 993 (`ssl`), 143 otherwise | |
 | `security` | `ssl` | `ssl` (implicit TLS), `starttls`, or `plain` (needs `allow_plaintext: true`) |
 | `allow_plaintext` | `false` | the explicit opt-in for `security: plain`: **the password then travels in clear text**. Only for a loopback bridge or a network you trust completely |
+| `allow_loopback` | `false` | the explicit opt-in to connect to a loopback host (`localhost`, `127.0.0.1`, `::1`), on the configured `port` only (it must be given). `call.host_allowed` is still asked about that host and port: a core that sends an approved list never approves a loopback name, so it **refuses**; only an older core that sends no list lets the opt-in stand |
 | `allowed_hosts` | none | extra server names, at most 16 (see "Other hosts") |
 | `account` | `mail` | a label (A-Z a-z 0-9 . _ -, at most 32): the state key and part of the fingerprints |
 | `folders` | `["INBOX"]` | 1 to 8 folder names, exactly as the server spells them (`Lists/School`, `Envoyés`) |
@@ -165,12 +166,13 @@ Declare the host for the instance (approve it in `horae.lock`) and list it in `a
 
 ### Proton Mail Bridge (loopback)
 
-Bridge listens on `127.0.0.1` (IMAP 1143 with STARTTLS by default) and gives its own username and password. The loopback hosts are the only ones that need no declaration, since a manifest cannot declare them:
+Bridge listens on `127.0.0.1` (IMAP 1143 with STARTTLS by default) and gives its own username and password. A manifest cannot declare a loopback host, so it is never in `plugin.yaml`. Connecting to one needs the explicit `allow_loopback: true` and the `port` (no default is assumed). The lock is still consulted: with a core that sends an approved host list (horae-sdk 0.5) a loopback name is refused (`host_not_approved`); only a core that sends no list (older than 0.5) treats your opt-in as the approval. Check that your core accepts this before relying on a bridge:
 
 ```yaml
 - imap.messages:
     host: 127.0.0.1
     port: 1143
+    allow_loopback: true
     security: starttls
     state_path: /var/lib/horae/imap-proton.json
     account: proton
@@ -180,7 +182,7 @@ Bridge's certificate is self-signed and the plugin never relaxes verification, s
 
 ### Other hosts
 
-`plugin.yaml` declares `imap.gmail.com` and `imap.fastmail.com`. Any other server must be (1) added to the instance's lock approvals for this plugin, and (2) listed in the call's `allowed_hosts`. Both are required: the core's list (`Call.host_allowed`, horae-sdk 0.5) cannot be widened by a pipeline, and a pipeline cannot reach a host the lock does not hold. With an older core that sends no list, only (2) applies. IP literals are never accepted (except loopback), and `localhost` is never an `allowed_hosts` value.
+`plugin.yaml` declares `imap.gmail.com` and `imap.fastmail.com`. Any other server must be (1) added to the instance's lock approvals for this plugin, and (2) listed in the call's `allowed_hosts`. Both are required: the core's list (`Call.host_allowed`, horae-sdk 0.5) cannot be widened by a pipeline, and a pipeline cannot reach a host the lock does not hold. With an older core that sends no list, only (2) applies. IP literals are never accepted (except loopback, see `allow_loopback`), and `localhost` is never an `allowed_hosts` value.
 
 ## Permissions
 
@@ -219,7 +221,7 @@ HORAE_IMAP_TEST_HOST=127.0.0.1 HORAE_IMAP_TEST_PORT=3143 HORAE_IMAP_TEST_IMAPS_P
 HORAE_IMAP_TEST_USER=tester HORAE_IMAP_TEST_PASSWORD=test-password uv run pytest
 ```
 
-GreenMail has no STARTTLS and a self-signed IMAPS certificate: the tests prove `starttls_unsupported` and that the certificate is refused; the happy path runs over its plain port on loopback with `allow_plaintext`. Fixtures and recordings are synthetic (`example.org`).
+GreenMail has no STARTTLS and a self-signed IMAPS certificate: the tests prove `starttls_unsupported` and that the certificate is refused; the happy path runs over its plain port on loopback with `allow_plaintext` and `allow_loopback`. Fixtures and recordings are synthetic (`example.org`).
 
 ## Contributing
 
