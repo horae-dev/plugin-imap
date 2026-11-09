@@ -1,0 +1,40 @@
+{
+  "tool": "imap.messages",
+  "params": {
+    "host": "imap.fastmail.com",
+    "state_path": "/var/lib/horae-recordings/imap-state.json",
+    "update_state": false,
+    "folders": [
+      "INBOX",
+      "Nope"
+    ],
+    "rules": [
+      {
+        "name": "school",
+        "kind": "request",
+        "from": [
+          "*@school.example.org"
+        ],
+        "task_prefix": "Reply: "
+      },
+      {
+        "name": "news",
+        "kind": "date",
+        "list_id": [
+          "news.example.org"
+        ]
+      }
+    ]
+  },
+  "paths": {
+    "write": [
+      "/var/lib/horae-recordings"
+    ]
+  },
+  "network": [
+    "imap.fastmail.com"
+  ],
+  "expect": {
+    "error": "folder_unavailable: cannot open 'Nope'"
+  }
+}

@@ -1,0 +1,27 @@
+# Written by `uv run python -m horae_imap --manifest > plugin.yaml`; tests/test_manifest.py
+# checks it is what the SDK writes. When installing, pin runtime.command to an absolute
+# interpreter that has this package (horae-sdk README, "The command").
+name: imap
+version: 0.1.0
+horae: '>=0,<0.2'
+description: New mail from IMAP folders, read-only, as requests and dates by rules.
+license: Apache-2.0
+homepage: https://github.com/horae-dev/plugin-imap
+provides:
+  sources:
+  - imap.messages
+permissions:
+  network:
+  - imap.fastmail.com
+  - imap.gmail.com
+  secrets:
+  - IMAP_USERNAME
+  - IMAP_PASSWORD
+  intents:
+  - task.create
+runtime:
+  protocol: mcp-stdio
+  command:
+  - python3
+  - -m
+  - horae_imap

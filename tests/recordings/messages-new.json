@@ -1,0 +1,109 @@
+{
+  "tool": "imap.messages",
+  "params": {
+    "host": "imap.fastmail.com",
+    "state_path": "/var/lib/horae-recordings/imap-state.json",
+    "update_state": false,
+    "folders": [
+      "INBOX"
+    ],
+    "rules": [
+      {
+        "name": "school",
+        "kind": "request",
+        "from": [
+          "*@school.example.org"
+        ],
+        "task_prefix": "Reply: "
+      },
+      {
+        "name": "news",
+        "kind": "date",
+        "list_id": [
+          "news.example.org"
+        ]
+      }
+    ],
+    "baseline_messages": 10,
+    "emit_tasks": true,
+    "snippet_chars": 60,
+    "link_template": "https://mail.example.org/#/{folder}/{uid}"
+  },
+  "paths": {
+    "write": [
+      "/var/lib/horae-recordings"
+    ]
+  },
+  "network": [
+    "imap.fastmail.com"
+  ],
+  "expect": {
+    "data": {
+      "account": "mail",
+      "folders": [
+        {
+          "folder": "INBOX",
+          "uidvalidity": 4242,
+          "last_uid": 4,
+          "fetched": 4,
+          "matched": 2,
+          "baselined": true,
+          "uidvalidity_changed": false,
+          "more": false
+        }
+      ],
+      "items": [
+        {
+          "fingerprint": "imap:request:mail:INBOX:4242:2",
+          "kind": "request",
+          "rule": "school",
+          "folder": "INBOX",
+          "uid": 2,
+          "from": "secretariat@school.example.org",
+          "subject": "Autorisation de sortie",
+          "dates": [
+            "2026-11-15"
+          ],
+          "due": "2026-11-15",
+          "received": "2026-11-02",
+          "snippet": "Bonjour, merci de retourner le coupon avant le 15 novembre 2",
+          "link": "https://mail.example.org/#/INBOX/2"
+        },
+        {
+          "fingerprint": "imap:date:mail:INBOX:4242:3",
+          "kind": "date",
+          "rule": "news",
+          "folder": "INBOX",
+          "uid": 3,
+          "from": "news@example.org",
+          "subject": "Newsletter",
+          "dates": [
+            "2026-12-12"
+          ],
+          "due": "2026-12-12",
+          "received": "2026-11-02",
+          "snippet": "La fete de l'ecole aura lieu le 12/12/2026.",
+          "link": "https://mail.example.org/#/INBOX/3"
+        }
+      ],
+      "truncated": false,
+      "state_updated": false
+    },
+    "intents": [
+      {
+        "type": "task.create",
+        "title": "Reply: Autorisation de sortie",
+        "fingerprint": "imap:request:mail:INBOX:4242:2",
+        "due": "2026-11-15",
+        "link": "https://mail.example.org/#/INBOX/2"
+      },
+      {
+        "type": "task.create",
+        "title": "Newsletter",
+        "fingerprint": "imap:date:mail:INBOX:4242:3",
+        "due": "2026-12-12",
+        "link": "https://mail.example.org/#/INBOX/3"
+      }
+    ]
+  }
+}
