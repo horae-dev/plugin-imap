@@ -13,7 +13,8 @@ Every command the plugin can send goes through `Session._run`, which holds the a
   records every command sent to a real server).
 
 TLS: implicit TLS (IMAPS) by default, or `STARTTLS`; both verify the certificate and the host
-name with the system trust store (`ssl.create_default_context()`, never relaxed). Plain text is
+name with the system trust store (`ssl.create_default_context()`, never relaxed), or, when the
+caller gives `ca_file`, with only that PEM (still verified, never relaxed). Plain text is
 only opened when the caller asks for it, and then it is done before any credential is sent only
 if the server does not advertise `LOGINDISABLED`.
 """
@@ -49,6 +50,8 @@ class Endpoint:
     port: int
     security: Security
     timeout: float
+    ca_file: str | None = None
+    """A PEM file of the CA (or the self-signed certificate) that vouches for this server."""
 
 
 @dataclass(frozen=True)
@@ -109,9 +112,13 @@ def folder_name(name: str) -> str:
     return '"' + "".join(out).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def tls_context() -> ssl.SSLContext:
-    """The default client context: certificate and host name verified, TLS 1.2 or later."""
-    context = ssl.create_default_context()
+def tls_context(ca_file: str | None = None) -> ssl.SSLContext:
+    """The client context: certificate and host name verified, TLS 1.2 or later.
+
+    Without `ca_file` it trusts the system store. With one it trusts **only** the certificates in
+    that PEM file (a pin, for one connection: the system store is not loaded, nothing global is
+    changed), and still checks the chain and the host name. There is no way to turn either off."""
+    context = ssl.create_default_context(cafile=ca_file)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     return context
 
@@ -137,13 +144,13 @@ class ImapSession:
                 self._conn = imaplib.IMAP4_SSL(
                     endpoint.host,
                     endpoint.port,
-                    ssl_context=tls_context(),
+                    ssl_context=tls_context(endpoint.ca_file),
                     timeout=endpoint.timeout,
                 )
             else:
                 self._conn = imaplib.IMAP4(endpoint.host, endpoint.port, endpoint.timeout)
                 if endpoint.security == "starttls":
-                    self._start_tls()
+                    self._start_tls(endpoint)
         except ssl.SSLCertVerificationError:
             raise PluginError("tls_failed: the server certificate was not accepted") from None
         except ssl.SSLError:
@@ -153,11 +160,11 @@ class ImapSession:
         except (OSError, imaplib.IMAP4.error, EOFError):
             raise PluginError("connect_failed: cannot reach the server") from None
 
-    def _start_tls(self) -> None:
+    def _start_tls(self, endpoint: Endpoint) -> None:
         if "STARTTLS" not in self._capabilities():
             self._drop()
             raise PluginError("starttls_unsupported: the server does not offer STARTTLS")
-        self._run("STARTTLS", ssl_context=tls_context())
+        self._run("STARTTLS", ssl_context=tls_context(endpoint.ca_file))
 
     def _capabilities(self) -> tuple[str, ...]:
         return tuple(str(c).upper() for c in self._conn.capabilities)

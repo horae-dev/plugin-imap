@@ -1,6 +1,6 @@
 [project]
 name = "horae-plugin-imap"
-version = "0.1.1"
+version = "0.1.2"
 description = "The IMAP Horae plugin: a read-only mail source with rules-first extraction of requests and dates."
 readme = "README.md"
 license = "Apache-2.0"
