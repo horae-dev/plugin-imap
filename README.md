@@ -4,7 +4,7 @@
 
 Horae plugin: a generic, **read-only** IMAP source. It reads the mail that arrived since the last run in the folders you choose, applies your rules (sender, subject, list-id; no LLM) and returns `request` and `date` items, optionally as `task.create` intents. Proton Mail through Proton Mail Bridge is the same source pointed at `127.0.0.1` (the recipe is [docs/proton-bridge.md](docs/proton-bridge.md)).
 
-Version 0.1.2 · requires `horae-sdk` 0.6 · Apache-2.0
+Version 0.1.3 · requires `horae-sdk` 0.9 · Apache-2.0
 
 ## What it never does
 

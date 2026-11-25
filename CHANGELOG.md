@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3
+
+- Install with `horae plugin add`: `horae-sdk` 0.9 from PyPI (`>=0.9,<0.10`, hashed in
+  `uv.lock`) instead of a git commit of the core's `main`, which the core installer refuses; no
+  `exclude-newer` in `[tool.uv]`, which `uv sync --locked --no-config` ignores so the lock would
+  not match (horae-dev/horae#199). Renovate's `minimumReleaseAge` keeps the 7-day cooldown.
+- **Permissions:** none new.
+
 ## 0.1.2
 
 - `ca_file` (new parameter): an absolute path to a PEM file trusted for that one connection,

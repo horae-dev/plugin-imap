@@ -46,7 +46,7 @@ from horae_imap.session import Connector, Endpoint, Selected, Session, connect, 
 
 NAME = "imap"
 """The plugin's name, also the namespace of its refs (`imap.messages`) and fingerprints."""
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 HORAE = ">=0,<0.2"
 COMMAND = ["python3", "-m", "horae_imap"]
 """`runtime.command` of `plugin.yaml`. When installing, pin an absolute interpreter that has
